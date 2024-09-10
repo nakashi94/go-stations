@@ -2,6 +2,11 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
 
 	"github.com/TechBowl-japan/go-stations/model"
 	"github.com/TechBowl-japan/go-stations/service"
@@ -9,20 +14,69 @@ import (
 
 // A TODOHandler implements handling REST endpoints.
 type TODOHandler struct {
-	svc *service.TODOService
+	svc  *service.TODOService
+	Path string
 }
 
 // NewTODOHandler returns TODOHandler based http.Handler.
 func NewTODOHandler(svc *service.TODOService) *TODOHandler {
 	return &TODOHandler{
-		svc: svc,
+		svc:  svc,
+		Path: "/todos",
+	}
+}
+
+// ServeHTTP implements http.Handler interface
+func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read request body", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		var data model.CreateTODORequest
+		err = json.Unmarshal(body, &data)
+		if err != nil {
+			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+			return
+		}
+
+		// subjectが空であればBad Requestを返す
+		if len(data.Subject) == 0 {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			println("subject length is 0")
+			return
+		}
+
+		CreateTodoResponse, err := h.Create(r.Context(), &data)
+		if err != nil {
+			log.Println(err)
+			fmt.Println("createTodoResponse Error")
+			http.Error(w, "Failed to create TODO", http.StatusBadRequest)
+			return
+		}
+
+		encoder := json.NewEncoder(w)
+		err = encoder.Encode(CreateTodoResponse)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
 // Create handles the endpoint that creates the TODO.
 func (h *TODOHandler) Create(ctx context.Context, req *model.CreateTODORequest) (*model.CreateTODOResponse, error) {
-	_, _ = h.svc.CreateTODO(ctx, "", "")
-	return &model.CreateTODOResponse{}, nil
+	todo, err := h.svc.CreateTODO(ctx, req.Subject, req.Description)
+	if err != nil {
+		return nil, err
+	}
+	return &model.CreateTODOResponse{TODO: *todo}, nil
 }
 
 // Read handles the endpoint that reads the TODOs.
