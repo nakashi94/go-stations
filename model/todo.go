@@ -48,7 +48,5 @@ type (
 		IDs []int64 `json:"ids"`
 	}
 	// A DeleteTODOResponse expresses ...
-	DeleteTODOResponse struct {
-		DeletedCount int64 `json:"deleted_count"`
-	}
+	DeleteTODOResponse struct{}
 )
